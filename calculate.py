@@ -25,7 +25,7 @@ df['Population'] = df['Population'].str.replace(',', '').astype(float)
 
 nytimes_source_info = 'Reported Cases and Deaths by County: New York Times - https://github.com/nytimes/covid-19-data/blob/master/us-counties.csv'
 census_source_info = "Estimated 2019 County Populations: United States Census"
-author = "David Billingsley"
+author = "David Billingsley github @dcb2124"
 
 source_info_complete = "Author: " + author + ". Sources: " + nytimes_source_info + '. ' + census_source_info
 author
