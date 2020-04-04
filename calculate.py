@@ -17,10 +17,11 @@ import plotly.express as px
 #read in the data
 #fips has to be read as string because I could not figure out how to get pandas to add leading
 #zeros so that plotly would correctly interpret FIPS codes
-df = pd.read_csv('covid_by_county_population_4.2.csv', dtype={'fips':str})
+#for some reason open_office uses ; as the delimiter in its CSV files.
+df = pd.read_csv('covid_by_county_population_4.3.csv', dtype={'fips':str}, delimiter=';')
 
-#getting rid of commas and converting to float value in Population column
-df['Population'] = df['Population'].str.replace(',', '').astype(float)
+#getting converting to float value in Population column
+df['Population'] = df['Population'].astype(float)
 
 
 nytimes_source_info = 'Reported Cases and Deaths by County: New York Times - https://github.com/nytimes/covid-19-data/blob/master/us-counties.csv'
@@ -198,8 +199,8 @@ def generate_maps(case_data, dates, data_of_interest, latest_only = True, filety
         cty_map_fig.write_image(img_filename)
         
 
-generate_maps(df, date_list, 'cases', latest_only=False)
-generate_maps(df, date_list, 'deaths', latest_only=False)
+generate_maps(df, date_list, 'cases', latest_only=True)
+generate_maps(df, date_list, 'deaths', latest_only=True)
 
 
 
