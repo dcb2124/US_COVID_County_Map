@@ -6,6 +6,11 @@ Created on Mon Mar 30 17:02:42 2020
 """
 
 import pandas as pd
+import numpy as np
+
+from plotly.offline import init_notebook_mode,  plot
+
+
 from urllib.request import urlopen
 import json
 
@@ -13,12 +18,14 @@ with urlopen('https://raw.githubusercontent.com/plotly/datasets/master/geojson-c
     counties = json.load(response)
     
 import plotly.express as px
+init_notebook_mode()
+
 
 #read in the data
 #fips has to be read as string because I could not figure out how to get pandas to add leading
 #zeros so that plotly would correctly interpret FIPS codes
-#for some reason open_office uses ; as the delimiter in its CSV files.
-df = pd.read_csv('covid_by_county_population_4.3.csv', dtype={'fips':str}, delimiter=';')
+
+df = pd.read_csv('us_covid_data_latest.csv', dtype={'fips':str})
 
 #getting converting to float value in Population column
 df['Population'] = df['Population'].astype(float)
@@ -146,36 +153,58 @@ date_list = pd.pivot_table(df, index = 'date').index
 
 #iterate through them making maps for data on each date.
 
-def generate_maps(case_data, dates, data_of_interest, latest_only = True, filetype=".png"):
+
+# def get_range_max(frame, column):
+    
+#     return (0, np.log10(frf))
+
+def generate_maps(case_data, dates, data_of_interest, 
+                  latest_only = True, 
+                  filetype=".png", 
+                  render_img=True, 
+                  tix=[], 
+                  tixtext=[]):
     
     #generate the field information
     
     #just in case I forget to enter it this way
-    data_of_interest = data_of_interest.lower()
+    data_of_interest_lower = data_of_interest.lower()
     
-    column_name = data_of_interest + "_per_capita"
-    scale_title = 'Reported ' + data_of_interest.capitalize() + ' per Capita'
+    column_name = data_of_interest_lower + "_per_capita"
+    scale_title = 'Reported ' + data_of_interest_lower.capitalize() + ' per Capita'
 
     #set max of color scale to be whatever the max of the data is over all dates
-    range_max = (0, df[column_name].describe()['max'])
+    range_min = np.log10(case_data[column_name].describe()['min'])
+    range_max = np.log10(case_data[column_name].describe()['max'])
 
-    color_dict = { 'deaths' : 'amp', 'cases': 'Reds'}       
+    color_dict = { 'deaths' : 'amp', 'cases': 'Reds'}  
+         
+    if data_of_interest.lower() == 'deaths':
+        
+        dates = dates.drop(dates[0:39])
 
     #so I can tell the function to just do this for the latest date   
     if latest_only:
         dates = [date_list[-1]]
+        # dates = ['2020-03-03', '2020-04-02']
 
     for date in dates:
     
         df_on_date = case_data[case_data['date'] == date]
+        
+        if data_of_interest_lower == 'deaths':
             
-        map_title = "Reported COVID-19 " + data_of_interest.capitalize() + " per Capita by County as of " + date 
+            df_on_date.loc[df_on_date['deaths_per_capita'] == 0, 'deaths_per_capita'] = np.NaN
+            range_min = np.log10(case_data[case_data['deaths_per_capita'] != 0]['deaths_per_capita'].describe()['min'])
+            
+            
+        map_title = "Reported COVID-19 " + data_of_interest_lower.capitalize() + " per Capita by County as of " + date 
         img_filename = 'dated_maps\\' + column_name + '_map_' + date + filetype
         
         cty_map_fig = px.choropleth(df_on_date, geojson=counties, locations='fips', 
-                                    color=column_name,
-                                    color_continuous_scale=color_dict[data_of_interest],
-                                    range_color=range_max,
+                                    color=np.log10(df_on_date[column_name]),
+                                    color_continuous_scale=color_dict[data_of_interest_lower],
+                                    range_color=(range_min, range_max),
                                     scope="usa",
                                     labels={column_name:scale_title},
                                     hover_name='county',
@@ -196,13 +225,90 @@ def generate_maps(case_data, dates, data_of_interest, latest_only = True, filety
                 )]
             )
         
-        cty_map_fig.write_image(img_filename)
+
+            
+        cty_map_fig.update_layout(coloraxis_colorbar=dict(
+                title = data_of_interest.capitalize(),
+                tickvals = tix,
+                ticktext = tixtext,
+                ypad = 5
+                )
+            )
         
+        if render_img:
+            
+            cty_map_fig.write_image(img_filename)
+        
+    return cty_map_fig
+        
+caseticks = [-7, -6, -5, -4, -3, -2, -1.28 ]
+casetick_text = ["1 in 10,000,000" ,"1 in 1,000,000",  "1 in 100,000",  "1 in 10,000", "1 in 1,000", "1 in 100", "1 in 19"]
 
-generate_maps(df, date_list, 'cases', latest_only=True)
-generate_maps(df, date_list, 'deaths', latest_only=True)
+deathticks = [-7, -6, -5, -4, -3]
+deathtick_text = ["1 in 10,000,000", "1 in 1,000,000", "1 in 100,000", "1 in 10,000", "1 in 1,000"]
+
+# plot(generate_maps(df, date_list, 'cases', 
+#                     latest_only=True, 
+#                     render_img=False,
+#                     tix = caseticks,
+#                     tixtext = casetick_text
+                   
+#                     )
+#       )
 
 
+generate_maps(df, date_list, 'deaths', 
+              latest_only=False, 
+              render_img = True, 
+              tix = deathticks,
+              tixtext = deathtick_text)
+
+generate_maps(df, date_list, 'cases', 
+              latest_only=False, 
+              render_img = True, 
+              tix = caseticks,
+              tixtext = casetick_text)
+
+
+
+def animate_counties(case_data, data_of_interest):
+    
+    
+    
+    data_of_interest = data_of_interest.lower()
+    
+    if data_of_interest.lower() == 'deaths':
+            
+        case_data.loc[case_data['deaths_per_capita'] == 0, 'deaths_per_capita'] = np.NaN
+        case_data_no_deathna = case_data[case_data['deaths_per_capita'].notna()]
+        frame = case_data_no_deathna
+    else:
+        frame = case_data
+    
+    column_name = data_of_interest + "_per_capita"
+    scale_title = 'Reported ' + data_of_interest.capitalize() + ' per Capita'
+
+    #set max of color scale to be whatever the max of the data is over all dates
+    range_max = (0, df[column_name].describe()['max'])
+
+    color_dict = { 'deaths' : 'amp', 'cases': 'Reds'} 
+    
+    map_title = "Reported COVID-19 " + data_of_interest.capitalize() + " per Capita by County"
+    
+
+    
+    map_animated = px.choropleth(frame, geojson=counties, 
+                                    locations='fips', 
+                                    animation_frame = 'date',
+                                    color=column_name,
+                                    color_continuous_scale=color_dict[data_of_interest],
+                                    range_color=range_max,
+                                    scope="usa",
+                                    labels={column_name:scale_title},
+                                    title=map_title)   
+    return map_animated
+
+#plot(animate_counties(df,'deaths'))
 
 #TODO
 #learn how to make gif out of all dates to show progression
